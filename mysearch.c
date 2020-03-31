@@ -41,7 +41,6 @@ void pathconcat(char* full, char* begin, char* end){
     full[ctr1 + ctr2] = end[ctr2];
     ctr2++;
   }
-  //return ((ctr1 + ctr2) < 0xff) ? 0 : 1;
 }
 
 int compare(char* a, char* b){
@@ -100,13 +99,11 @@ int looknfind(struct threadstate* state) {
     while ((dentry = readdir(d)) != NULL) {
     	if ((dentry->d_type != DT_UNKNOWN) && (dentry->d_name[0] != '.')) {  // good file
 
-    		if (dentry->d_type == DT_DIR) {
+    		if (dentry->d_type == DT_DIR) {  // is a directory
           if (compare(filename, dentry->d_name)) {
     		    printf("MATCH: %s/%s (Directory)\n", path, dentry->d_name);
             state->matched = 1;
     		  }
-          //pathconcat(fullpath, path, dentry->d_name);
-          //printf("%s \n", fullpath);
           
           index->next = (struct list_node*)malloc(sizeof(fam));  // new node
           index->next->prev = index;
@@ -116,15 +113,9 @@ int looknfind(struct threadstate* state) {
           index->obj = (struct threadstate*)malloc(sizeof(child_state));  // new child
           index->obj->hold = 1;
           index->obj->coolnum = state->coolnum + 1;
-          //printf("New thread at depth: %d \n", index->obj->coolnum);
           index->obj->random_ptr = (char*)malloc(256);
           pathconcat(index->obj->random_ptr, path, dentry->d_name);
-          //printf("Queued: %s \n", index->obj->random_ptr);
           state->spawned = 1;
-          //state->spawned = (pthread_create(&deeper, NULL, &looknfind, &child_state)) ? 0 : 1;
-          //printf("%d \n", deeper);
-          // spawn child threads at the end after accumulating folder names
-          // use a linked list
         }
 
   			if ((dentry->d_type == DT_REG) && (compare(filename, dentry->d_name))) {
@@ -147,11 +138,9 @@ int looknfind(struct threadstate* state) {
       if (!(pthread_create(&(index->me), NULL, &looknfind, (index->obj)))) {
       //made thread
         threadcount++;
-        //printf("Threads %d \n", threadcount);
         while(pthread_join(index->me, NULL)) {
           sched_yield();
         }
-        //puts("Joined");
       } else {
         puts("Could not create thread");
       }
@@ -160,13 +149,10 @@ int looknfind(struct threadstate* state) {
         index = index->prev;
         free(index->next);
         threadcount--;
-        //printf("Freed. %d remain \n", threadcount);
       }
     }
-    //while(pthread_join(deeper, &child_state)){
     
   }
-  //puts("Thread exited");
   state->done = 1;
   pthread_exit(NULL);
   
@@ -175,9 +161,10 @@ int looknfind(struct threadstate* state) {
 
 int main(int argc, char** argv){
   pthread_t worker;  // worker thread
-  struct threadstate state;
-  int filename_len = 0;
+  struct threadstate state;  // 
+  int filename_len;
   char* username;
+
 	switch (argc){
     case 1:
       puts("Please specify a file");
@@ -195,7 +182,9 @@ int main(int argc, char** argv){
   if (argc < 2){
 		return 0;
 	}
+
   username = getlogin();
+  filename_len = 0;
 
 
   char paf[64];
@@ -218,7 +207,6 @@ int main(int argc, char** argv){
   if (pthread_join(worker, NULL)){
     perror("thread error");
   }
-	//looknfind(paf, argv[1]);
   puts("Done");
 	return 0;
 }
