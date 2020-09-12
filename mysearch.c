@@ -1,4 +1,4 @@
-
+/* l1cache@bu.edu*/
 
 #include <dirent.h>
 #include <stdio.h>
@@ -8,11 +8,9 @@
 
 
 struct threadstate {
-  int matched : 1;
-  int hold : 1;
   int done : 1;
   int spawned : 1;
-  unsigned int coolnum : 4;
+  unsigned int depth : 6;  // want it byte aligned, folder depth can be up to 64
   void* random_ptr;
 };
 
@@ -23,12 +21,22 @@ struct list_node {
   pthread_t me;
 };
 
-unsigned int threadcount;
-unsigned int max_depth;
+unsigned int threadcount; //for debug/curiosity
+unsigned int max_depth; // max depth of folders to go into
 
 char filename[256];
 
-void pathconcat(char* full, char* begin, char* end){
+unsigned int len(char* string){
+  if (string == 0x0) {
+    return 0;
+  }
+  unsigned int i = 0;
+  while (string[++i]);
+  return i;
+
+}
+
+void pathconcat(char* full, char* begin, char* end){  // forgot string.h existed
   unsigned int ctr1, ctr2 = 0;
   ctr1 = 0;
   while((begin[ctr1] != NULL) && (ctr1 < 0xff)) {
@@ -43,66 +51,79 @@ void pathconcat(char* full, char* begin, char* end){
   }
 }
 
-int compare(char* a, char* b){
-  unsigned int len = 0;
-  while ((a[len] != NULL) && (len < 0xff)) {
-    if (b[len] == NULL) {
+int compare(char* a, char*b){
+  unsigned int i = 0;
+  while ((a[i] != NULL) && (i < 0xff)) {
+    if (b[i] == NULL) {
       return 0;
     } else {
-      if (a[len] != (b[len] | 0x20)) { // makes lowercase
+      if (a[i] != (b[i] | 0x20)) { // makes lowercase
         return 0;
       }
-      len++;  // b shorter than a? 
+      i++;  // b shorter than a? 
     } 
   }
   //printf("%s was a match \n", b);
   return 1;
 }
 
+int triecompare(char* a, char* b){
+  unsigned int length, max, matchlen;
+  length = len(a);
+  max = len(b) - length;
+  if (max > 0xff){ // a longer than b
+    return 0;
+  }
+  matchlen = 0;
+  for (unsigned int i = 0; i < max; i++) {
+    matchlen = ((a[matchlen] == (b[i] | 0x20))) ? ++matchlen : 0;
+    if (matchlen == len(a)){
+      return 1;
+    }
+  }
+  return (matchlen == length) ? 1 : 0;
+}
+
 int looknfind(struct threadstate* state) {
 
 	DIR *d;
-  char* path;
-	struct dirent *dentry;
-  char fullpath[256];
-  pthread_t deeper = 0;
+  char* path;  // useful ptr instead of index->obj->random_ptr
+	struct dirent *dentry;  // directory entry
+  char fullpath[256];  // as long as natively supported
+
   struct threadstate child_state;
-  unsigned int attempts;
+  unsigned int attempts;  // opendir may fail from too many fids or lack of privileges so we wait to try and open if it fails
+  struct list_node fam; //head
+  struct list_node* index;
+
   path = (char*)state->random_ptr;
-  if (state->coolnum > max_depth) {
-    //puts("TOO DEEP");
+  if (state->depth > max_depth) {
+    //puts("Depth exceeded");
     state->done = 1;
     pthread_exit(NULL);
   }
-  while (state->hold) {
-    //puts("Yielding");
-    sched_yield();
-
-  }
   
-  struct list_node fam; //head
-  struct list_node* index = &fam;
+
+  index = &fam;
   attempts = 0;
   //d = opendir(path);
   for (attempts = 0; attempts < 3; ++attempts){
     d = opendir(path);
-    if (d == NULL) {
+    if (d == NULL) {  // error opening, can be run out of file descriptors
       //printf("Out of files for : %s \n" , path);
-      sched_yield();
+      sched_yield(); // wait for other threads to free up file descriptors, try again
     } else {
       break;
     }
   }
 
-  //printf("Opened: %s \n", path);
   if (d) {
-    while ((dentry = readdir(d)) != NULL) {
-    	if ((dentry->d_type != DT_UNKNOWN) && (dentry->d_name[0] != '.')) {  // good file
+    while ((dentry = readdir(d)) != NULL) {  // openable directory
+    	if ((dentry->d_type != DT_UNKNOWN) && (dentry->d_name[0] != '.')) {  // good file and not hidden
 
     		if (dentry->d_type == DT_DIR) {  // is a directory
           if (compare(filename, dentry->d_name)) {
     		    printf("MATCH: %s/%s (Directory)\n", path, dentry->d_name);
-            state->matched = 1;
     		  }
           
           index->next = (struct list_node*)malloc(sizeof(fam));  // new node
@@ -111,44 +132,43 @@ int looknfind(struct threadstate* state) {
           
           
           index->obj = (struct threadstate*)malloc(sizeof(child_state));  // new child
-          index->obj->hold = 1;
-          index->obj->coolnum = state->coolnum + 1;
-          index->obj->random_ptr = (char*)malloc(256);
-          pathconcat(index->obj->random_ptr, path, dentry->d_name);
+          index->obj->depth = state->depth + 1;  
+          index->obj->random_ptr = (char*)malloc(256);  // allocate space for path
+          pathconcat(index->obj->random_ptr, path, dentry->d_name);  // give child the path it should open
           state->spawned = 1;
         }
 
-  			if ((dentry->d_type == DT_REG) && (compare(filename, dentry->d_name))) {
-  				printf("MATCH: %s/%s \n", path, dentry->d_name);
-          state->matched = 1;	
+  	if ((dentry->d_type == DT_REG) && (compare(filename, dentry->d_name))) {  // normal file
+  		printf("MATCH: %s/%s \n", path, dentry->d_name);
         }
       }
     }
     closedir(d);
   } else {
-    printf("Could not open %s \n", path);
+    //printf("Could not open %s \n", path);
     state->done = 1;
     pthread_exit(NULL);
   }
 
   if (state->spawned) {
-    while(index->prev != NULL) {
+    while(index->prev != NULL) {  // go backwards on the LL
 
-      index->obj->hold = 0;
       if (!(pthread_create(&(index->me), NULL, &looknfind, (index->obj)))) {
       //made thread
         threadcount++;
-        while(pthread_join(index->me, NULL)) {
+        while(pthread_join(index->me, NULL)) {  // wait for it to finish before making new ones
           sched_yield();
         }
       } else {
         puts("Could not create thread");
+        index->obj->done = 1;  // mark as ready for cleanup
       }
       if (index->obj->done) {
+        free(index->obj->random_ptr);
         free(index->obj);
         index = index->prev;
-        free(index->next);
-        threadcount--;
+        free(index->next);  // erase from list
+        threadcount--;  // just for debugs
       }
     }
     
@@ -161,10 +181,9 @@ int looknfind(struct threadstate* state) {
 
 int main(int argc, char** argv){
   pthread_t worker;  // worker thread
-  struct threadstate state;  // 
+  struct threadstate state;  // control bits and a string ptr
   int filename_len;
   char* username;
-
 	switch (argc){
     case 1:
       puts("Please specify a file");
@@ -175,7 +194,12 @@ int main(int argc, char** argv){
       max_depth = 2;
       break;
     case 3: 
-      max_depth = (unsigned int)argv[2][0] - 48;
+    printf("%u \n", len(argv[2]));
+        if (len(argv[2]) > 2){
+          max_depth = (((unsigned int)argv[2][0] - 48)*100) + (((unsigned int)argv[2][1] - 48)*10) + ((unsigned int)argv[2][2] - 48);
+        } else {
+          max_depth = (argv[2][1]) ? (((unsigned int)argv[2][0] - 48)*10) + ((unsigned int)argv[2][1] - 48) : ((unsigned int)argv[2][0] - 48);
+        }
       printf("Depth of %u will be used\n", max_depth);
       break;
   }
@@ -183,12 +207,12 @@ int main(int argc, char** argv){
 		return 0;
 	}
 
-  username = getlogin();
+  username = "Felipe"; //getlogin();
   filename_len = 0;
 
 
   char paf[64];
-  pathconcat(paf, "/mnt/c/Users", username);
+  pathconcat(paf, "/mnt", "c");
   if (chdir(paf)) {
     perror("Could not change directory");
     return 0;
@@ -198,7 +222,7 @@ int main(int argc, char** argv){
     filename_len++;
   }
   state.random_ptr = paf;
-  state.coolnum = 0;
+  state.depth = 0;
   threadcount++;
   pthread_create(&worker, NULL, &looknfind, &state);
   while (!state.done) {
