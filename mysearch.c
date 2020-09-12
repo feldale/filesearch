@@ -194,12 +194,11 @@ int main(int argc, char** argv){
       max_depth = 2;
       break;
     case 3: 
-    printf("%u \n", len(argv[2]));
-        if (len(argv[2]) > 2){
-          max_depth = (((unsigned int)argv[2][0] - 48)*100) + (((unsigned int)argv[2][1] - 48)*10) + ((unsigned int)argv[2][2] - 48);
-        } else {
-          max_depth = (argv[2][1]) ? (((unsigned int)argv[2][0] - 48)*10) + ((unsigned int)argv[2][1] - 48) : ((unsigned int)argv[2][0] - 48);
-        }
+      if (len(argv[2]) > 2){
+        max_depth = (((unsigned int)argv[2][0] - 48)*100) + (((unsigned int)argv[2][1] - 48)*10) + ((unsigned int)argv[2][2] - 48);
+      } else {
+        max_depth = (argv[2][1]) ? (((unsigned int)argv[2][0] - 48)*10) + ((unsigned int)argv[2][1] - 48) : ((unsigned int)argv[2][0] - 48);
+      }
       printf("Depth of %u will be used\n", max_depth);
       break;
   }
@@ -207,7 +206,7 @@ int main(int argc, char** argv){
 		return 0;
 	}
 
-  username = "Felipe"; //getlogin();
+  username = getlogin();
   filename_len = 0;
 
 
