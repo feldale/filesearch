@@ -190,8 +190,8 @@ int main(int argc, char** argv){
       return 0;
       break;
     case 2:
-      puts("Default max depth of 2 will be used");
-      max_depth = 2;
+      puts("Default max depth of 5 will be used");
+      max_depth = 5;
       break;
     case 3: 
       if (len(argv[2]) > 2){
