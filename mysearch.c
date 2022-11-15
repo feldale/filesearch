@@ -139,7 +139,7 @@ int looknfind(struct threadstate* state) {
         }
 
     if ((dentry->d_type == DT_REG) && (compare(filename, dentry->d_name))) {  // normal file
-      printf("MATCH: %s/%s T %u\n", path, dentry->d_name, threadcount);
+      printf("MATCH: %s/%s \n", path, dentry->d_name, threadcount);
         }
       }
     }
