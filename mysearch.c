@@ -33,19 +33,30 @@ unsigned int len(char* string){
   unsigned int i = 0;
   while (string[++i]);
   return i;
+}
 
+
+unsigned int letterOrNumber(char c){
+  //printf("%c\n", c);
+  //printf("%u\n", ((c > 0x40) & (c < 0x5b) ) | ( (c > 0x60) & (c < 0x7b) ) | (c == 0x2f));
+  return ((c > 0x40) & (c < 0x5b) ) | ( (c > 0x60) & (c < 0x7b) ) | (c == 0x2f);
 }
 
 void pathconcat(char* full, char* begin, char* end){  // forgot string.h existed
-  unsigned int ctr1, ctr2 = 0;
+  for (unsigned int i = 0; i < 0xff; i++) {
+    full[i] = NULL;
+  }
+  unsigned int ctr1, ctr2 = 0; //ctr=counter
   ctr1 = 0;
+  //while(letterOrNumber(begin[ctr1] != NULL) && ((ctr1 + ctr2) < 0xff))
   while((begin[ctr1] != NULL) && (ctr1 < 0xff)) {
     full[ctr1] = begin[ctr1];
     ctr1++;
   }
   full[ctr1] = '/';
   ctr1++;
-  while((end[ctr2] != NULL) && ((ctr1+ctr2) < 0xff)) {
+  //while((end[ctr2] != NULL) && ((ctr1+ctr2) < 0xff)) {
+  while(letterOrNumber(end[ctr2]) && ((ctr1 + ctr2) < 0xff) ){
     full[ctr1 + ctr2] = end[ctr2];
     ctr2++;
   }
@@ -86,9 +97,9 @@ int triecompare(char* a, char* b){
 
 int looknfind(struct threadstate* state) {
 
-  DIR *d;
+	DIR* d;
   char* path;  // useful ptr instead of index->obj->random_ptr
-  struct dirent *dentry;  // directory entry
+	struct dirent *dentry;  // directory entry
   char fullpath[256];  // as long as natively supported
 
   struct threadstate child_state;
@@ -109,7 +120,7 @@ int looknfind(struct threadstate* state) {
   //d = opendir(path);
   for (attempts = 0; attempts < 3; ++attempts){
     d = opendir(path);
-    if (d == NULL) {  // error opening, can be run out of file descriptors
+    if (d == NULL) {  // error opening, can be that you've run out of file descriptors
       //printf("Out of files for : %s \n" , path);
       sched_yield(); // wait for other threads to free up file descriptors, try again
     } else {
@@ -119,12 +130,12 @@ int looknfind(struct threadstate* state) {
 
   if (d) {
     while ((dentry = readdir(d)) != NULL) {  // openable directory
-      if ((dentry->d_type != DT_UNKNOWN) && (dentry->d_name[0] != '.')) {  // good file and not hidden
+    	if ((dentry->d_type != DT_UNKNOWN) && (dentry->d_name[0] != '.')) {  // good file and not hidden
 
-        if (dentry->d_type == DT_DIR) {  // is a directory
+    		if (dentry->d_type == DT_DIR) {  // is a directory
           if (compare(filename, dentry->d_name)) {
-            printf("MATCH: %s/%s (Directory)\n", path, dentry->d_name);
-          }
+    		    printf("MATCH: %s/%s (Directory)\n", path, dentry->d_name);
+    		  }
           
           index->next = (struct list_node*)malloc(sizeof(fam));  // new node
           index->next->prev = index;
@@ -138,8 +149,8 @@ int looknfind(struct threadstate* state) {
           state->spawned = 1;
         }
 
-    if ((dentry->d_type == DT_REG) && (compare(filename, dentry->d_name))) {  // normal file
-      printf("MATCH: %s/%s \n", path, dentry->d_name, threadcount);
+  	if ((dentry->d_type == DT_REG) && (compare(filename, dentry->d_name))) {  // normal file
+  		printf("MATCH: %s/%s \n", path, dentry->d_name, threadcount);
         }
       }
     }
@@ -179,17 +190,17 @@ int looknfind(struct threadstate* state) {
   return 0;
 }
 
+
 int main(int argc, char** argv){
   pthread_t worker;  // worker thread
   struct threadstate state;  // control bits and a string ptr
   int filename_len;
-  char* username;
   switch (argc){
-  case 1:
-      puts("Please specify a drive");
+	case 1:
+      puts("Please specify a drive"); // Todo: Add support for all flag to do all drives
       return 0;
       break;
-  case 2:
+	case 2:
       puts("Please specify a file");
       return 0;
       break;
@@ -198,7 +209,7 @@ int main(int argc, char** argv){
       max_depth = 5;
       break;
     case 4: 
-      if (len(argv[3]) > 2){
+      if (len(argv[3]) > 2){ //probably needs error correction based on character width
         max_depth = (((unsigned int)argv[3][0] - 48)*100) + (((unsigned int)argv[3][1] - 48)*10) + ((unsigned int)argv[3][2] - 48);
       } else {
         max_depth = (argv[3][1]) ? (((unsigned int)argv[3][0] - 48)*10) + ((unsigned int)argv[3][1] - 48) : ((unsigned int)argv[3][0] - 48);
@@ -208,14 +219,21 @@ int main(int argc, char** argv){
   }
 
   if (argc < 2){
-    return 0;
-  }
+		return 0;
+	}
 
   filename_len = 0;
 
 
   char paf[64];
+  /*
+  paf[0] = '/';
+  paf[1] = 'm';
+  paf[2] = 'n';
+  paf[3] = 't';
+  */
   pathconcat(paf, "/mnt", argv[1]);
+  printf("%s\n", paf);
   if (chdir(paf)) {
     perror("Could not change directory");
     return 0;
@@ -235,5 +253,5 @@ int main(int argc, char** argv){
     perror("thread error");
   }
   puts("Done");
-  return 0;
+	return 0;
 }
