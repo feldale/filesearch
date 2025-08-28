@@ -255,6 +255,6 @@ int main(int argc, char** argv){
   if (pthread_join(worker, NULL)){
     perror("thread error");
   }
-  puts("Done");
+  puts("Done, any error message below this is nonsense");
 	return 0;
 }
