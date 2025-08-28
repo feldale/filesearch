@@ -37,12 +37,6 @@ unsigned int len(char* string){
   return i;
 }
 
-unsigned int inValidMem(long long unsigned int memAddr){
-  long long unsigned int aVariable = 0;
-  aVariable -= 1;
-  return ((memAddr < (aVariable/4)) ? 1 : 0); //for some reason malloc returns addresses in weird ranges in newer ubuntu versions
-}
-
 unsigned int letterOrNumber(char c){
   //printf("%c\n", c);
   //printf("%u\n", ((c > 0x40) & (c < 0x5b) ) | ( (c > 0x60) & (c < 0x7b) ) | (c == 0x2f));
@@ -115,16 +109,7 @@ int looknfind(struct threadstate* state) {
   unsigned int attempts;  // opendir may fail from too many fids or lack of privileges so we wait to try and open if it fails
   struct list_node fam; //head
   struct list_node* index;
-  //printf("Wait what: %s\n",state->random_ptr);
-  /*
-  if (inValidMem((long long unsigned int)state->random_ptr)){
-    printf("Threadcount: %d \n", threadcount);
-    puts("Invalid memory adress supplied");
-    state->done = 1;
-    pthread_exit(NULL);
-    return 0;
-  }
-  */
+ 
   path = (char*)state->random_ptr;
   if (state->depth > max_depth) {
     //puts("Depth exceeded");
@@ -247,27 +232,17 @@ int main(int argc, char** argv){
   }
 
   filename_len = 0;
-  /*
-  while (argv[2][filename_len] != NULL){
-    filename[filename_len] = argv[2][filename_len];
-    filename_len++;
-  }
-  */
   filename_len = len(argv[2]);
   for (unsigned int i = 0; i < filename_len; i++) {
     filename[i] = argv[2][i];
   }
   char paf[64];
-  //char curPaf[64];
   char* mntStr = "/mnt";
   pathconcat(paf, mntStr, argv[1]);
   if (chdir(paf)) {
     perror("Could not change directory");
     return 0;
   }
-  
-  //getcwd(curPaf, 64);
-  //printf("We are here: %s\n", curPaf);
   
   state.random_ptr = paf; //already a pointer
   printf("Searching for: %s\n", filename);
